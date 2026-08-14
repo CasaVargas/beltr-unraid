@@ -1,0 +1,83 @@
+# Beltr — self-hosted, for people not on Unraid.
+# Unraid users should install from Community Applications instead; the template
+# in templates/ carries the same settings with descriptions.
+#
+#   cp .env.example .env    # then edit
+#   docker compose --profile cpu up -d      # CPU only
+#   docker compose --profile gpu up -d      # NVIDIA GPU
+#
+# Pick ONE profile. Both services publish the same port and share the same
+# volumes, so running them together is a port clash and two writers on one
+# SQLite database.
+#
+# Open http://<server>:8477/dashboard to manage, /tv on the screen showing
+# lyrics. Phones scan the QR from the TV — no app, no extra config, as long as
+# the TV was opened at an address the phones can also reach (i.e. not
+# localhost). See docs/deploy/UNRAID.md.
+
+x-beltr-common: &beltr-common
+  restart: unless-stopped
+  ports:
+    - "${BELTR_PORT:-8477}:${BELTR_PORT:-8477}"
+  environment:
+    PUID: "${PUID:-1000}"
+    PGID: "${PGID:-1000}"
+    TZ: "${TZ:-UTC}"
+    BELTR_PORT: "${BELTR_PORT:-8477}"
+    # Your license key from beltr.app. Activates once against this install's
+    # identity (a UUID stored in /config) and then works offline. Leave it
+    # blank to run the trial — five songs, then it asks you to buy.
+    # Alternatively drop the key in a file at /config/license.key.
+    BELTR_LICENSE_KEY: "${BELTR_LICENSE_KEY:-}"
+    # Fixed 6-digit host PIN. Left unset it is randomised on every start, which
+    # is confusing when a container restarts mid-party.
+    KARAOKE_HOST_PIN: "${KARAOKE_HOST_PIN:-}"
+    # Whisper only runs when no lyrics provider has the song, so most tracks
+    # never touch it. On a CPU-only box where it does run, large-v3-turbo is
+    # the difference between usable and not.
+    WHISPER_MODEL_SIZE: "${WHISPER_MODEL_SIZE:-large-v3}"
+    DEMUCS_MODEL: "${DEMUCS_MODEL:-htdemucs}"
+    # Optional password on the TV/dashboard pages and the management endpoints.
+    # Room joins stay open either way. Not an internet-facing auth layer —
+    # see docs/deploy/UNRAID.md before exposing this beyond your LAN.
+    AUTH_PASSWORD: "${AUTH_PASSWORD:-}"
+    BELTR_FIX_PERMS: "${BELTR_FIX_PERMS:-first-run}"
+  volumes:
+    # App state: DB, settings, logs, lyrics. Small — put it on fast storage.
+    - "${BELTR_CONFIG_DIR:-./config}:/config"
+    # Separated stems, imported audio, clips. Large — put it on bulk storage.
+    - "${BELTR_LIBRARY_DIR:-./library}:/library"
+    # Model weights (~2 GB after first run). A named volume by default so an
+    # image update never re-downloads them.
+    - beltr-cache:/cache
+    # Your music. Read-only: Beltr copies what it imports, never writes here.
+    - "${BELTR_MEDIA_DIR:-./media}:/media:ro"
+
+services:
+  # container_name is set per service, never in the shared block: Compose
+  # rejects a file where two services declare the same one, even when profiles
+  # mean only one can ever run.
+  beltr:
+    <<: *beltr-common
+    profiles: ["cpu"]
+    container_name: beltr
+    image: "ghcr.io/casavargas/beltr:${BELTR_TAG:-latest}"
+
+  beltr-gpu:
+    <<: *beltr-common
+    profiles: ["gpu"]
+    container_name: beltr-gpu
+    image: "ghcr.io/casavargas/beltr:${BELTR_TAG:-latest}-cuda"
+    # Compose's modern form of `--gpus all`. Needs nvidia-container-toolkit on
+    # the host; verify with:
+    #   docker run --rm --gpus all nvidia/cuda:12.8.0-base-ubuntu22.04 nvidia-smi
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+volumes:
+  beltr-cache:

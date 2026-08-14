@@ -1,0 +1,25 @@
+<CommunityApplications>
+  <Profile>
+**Beltr** turns any song in your own music library into a karaoke track.
+
+A local AI model separates the vocals out, synced lyrics are fetched or
+transcribed on your server, and the words go up on a TV while everyone's phone
+becomes a remote — they scan the QR code on screen, and there is no app to
+install.
+
+Nothing about your library is uploaded. Two containers are published here:
+
+- **Beltr** — the CPU image. Runs anywhere.
+- **Beltr-NVIDIA** — the same app built against CUDA, for servers with an
+  NVIDIA GPU and the Nvidia-Driver plugin. Dramatically faster.
+
+Install one or the other, not both — they share the same default paths.
+
+Beltr is a one-time purchase, not a subscription. The container runs free for
+five songs so you can try it against your own music before buying a key.
+
+Support: https://github.com/CasaVargas/beltr-releases/issues
+  </Profile>
+  <Icon>https://raw.githubusercontent.com/CasaVargas/beltr-unraid/main/icon.png</Icon>
+  <WebPage>https://beltr.app</WebPage>
+</CommunityApplications>

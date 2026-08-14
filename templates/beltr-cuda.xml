@@ -1,0 +1,122 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>Beltr-NVIDIA</Name>
+  <Repository>ghcr.io/casavargas/beltr:latest-cuda</Repository>
+  <Registry>https://github.com/CasaVargas/beltr-releases/pkgs/container/beltr</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>bash</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/CasaVargas/beltr-releases/issues</Support>
+  <Project>https://beltr.app</Project>
+  <Overview>
+Beltr turns any song in your music library into a karaoke track. It separates the vocals out with a local AI model, finds or transcribes synced lyrics, and displays them on a TV while everyone's phone acts as a remote — scan the QR code on screen, no app to install.
+
+Everything runs on your server. Nothing about your library is uploaded.
+
+THIS IS THE NVIDIA GPU BUILD. It needs the Unraid "Nvidia-Driver" plugin installed and your GPU passed through. Two settings below do that: NVIDIA_VISIBLE_DEVICES must hold your card's UUID (the Nvidia-Driver plugin page in Settings shows it, like GPU-1a2b3c4d-...), and "Extra Parameters" must contain --runtime=nvidia, which this template already sets.
+
+If you do not have an NVIDIA GPU, install plain "Beltr" instead. This image is several GB larger and gains you nothing without a card. It will still run — it falls back to the CPU — so a broken passthrough shows up as "slow", not "broken". Check the GPU panel in Settings after install to confirm the card was actually found.
+
+FIRST RUN: Beltr downloads about 2 GB of model weights into /cache the first time it needs them. That happens once and survives container updates as long as /cache stays mapped. Watch the container log if a first song seems to sit still — the download is what it's doing.
+
+SPEED: with a working GPU, separating a 3-4 minute song takes well under a minute. Most songs then get their lyrics instantly from an online lyrics database; the ones no provider knows fall back to local transcription, which the GPU also accelerates.
+
+LICENSE: Beltr is a one-time purchase (no subscription). Run it free for five songs, then enter your key from beltr.app in the License key field below — or drop it in a file at /config/license.key. It activates once and then works offline. Container updates and restarts do not re-activate, as long as you keep the Config path mapped; a key covers two installs.
+
+AFTER INSTALL: open the WebUI, go to Settings, and add /media as a music folder. Then open http://your-server:8477/tv on whatever screen you're singing at, and scan the QR with a phone.
+
+MICROPHONES NEED HTTPS: browsers only allow microphone access on a secure page, so singing scores and the phone-as-mic feature need Beltr behind a reverse proxy with a certificate. Everything else — queueing, playback, lyrics, stem mixing — works normally over plain http.
+
+NOTE: Beltr assumes everyone who can reach it is trusted. Set AUTH_PASSWORD to put a password on the TV and dashboard screens, but do not expose this container to the internet without a reverse proxy doing real authentication in front of it.
+  </Overview>
+  <Category>MediaApp:Music MediaServer:Music</Category>
+  <WebUI>http://[IP]:[PORT:8477]/dashboard</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/CasaVargas/beltr-unraid/main/templates/beltr-cuda.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/CasaVargas/beltr-unraid/main/icon.png</Icon>
+  <ReadMe>https://raw.githubusercontent.com/CasaVargas/beltr-unraid/main/README.md</ReadMe>
+  <ExtraSearchTerms>karaoke sing singalong lyrics vocals stems demucs whisper party microphone cdg mp3g nvidia gpu cuda</ExtraSearchTerms>
+  <License>Proprietary — one-time purchase, five-song free trial</License>
+  <Screenshot>https://raw.githubusercontent.com/CasaVargas/beltr-unraid/main/screenshots/tv-lyrics.webp</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/CasaVargas/beltr-unraid/main/screenshots/dashboard.png</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/CasaVargas/beltr-unraid/main/screenshots/phone-remote.webp</Screenshot>
+  <Date>2026-08-14</Date>
+  <Changes>
+### 2026-08-14
+
+First Community Applications release. The container tracks the Beltr desktop
+release line — per-version notes are at
+https://github.com/CasaVargas/beltr-releases/releases
+  </Changes>
+  <ExtraParams>--runtime=nvidia</ExtraParams>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires>Unraid Nvidia-Driver plugin, and an NVIDIA GPU with driver 525 or newer (the image ships CUDA 12.8 builds of PyTorch). Internet access on first start to activate a license key, or to begin the five-song trial.</Requires>
+
+  <Config Name="WebUI Port" Target="8477" Default="8477" Mode="tcp"
+          Description="Port for the web interface, the TV screen and the phone remotes. Change the host side only if 8477 is already taken."
+          Type="Port" Display="always" Required="true" Mask="false">8477</Config>
+
+  <Config Name="Config" Target="/config" Default="/mnt/user/appdata/beltr" Mode="rw"
+          Description="App state: database, settings, logs, lyrics. Small and written often — keep it on appdata (SSD/cache pool)."
+          Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/beltr</Config>
+
+  <Config Name="Library" Target="/library" Default="/mnt/user/beltr" Mode="rw"
+          Description="Processed karaoke library: separated stems and imported audio. Roughly 60-120 MB per song, so point this at the array, NOT at appdata."
+          Type="Path" Display="always" Required="true" Mask="false">/mnt/user/beltr</Config>
+
+  <Config Name="Music (read-only)" Target="/media" Default="/mnt/user/Music" Mode="ro"
+          Description="Your existing music. Mounted read-only — Beltr copies what it imports and never writes here. Add it as a music folder in Settings after the first start."
+          Type="Path" Display="always" Required="true" Mask="false">/mnt/user/Music</Config>
+
+  <Config Name="Model cache" Target="/cache" Default="/mnt/user/appdata/beltr-cache" Mode="rw"
+          Description="Downloaded AI model weights, about 2 GB. Keep this mapped or every container update re-downloads them. Faster storage makes model loading quicker."
+          Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/beltr-cache</Config>
+
+  <Config Name="NVIDIA_VISIBLE_DEVICES" Target="NVIDIA_VISIBLE_DEVICES" Default="all" Mode=""
+          Description="Which GPU to use. Paste the UUID shown on the Nvidia-Driver plugin page in Settings (it looks like GPU-1a2b3c4d-...). 'all' works on a single-GPU server. Getting this wrong is not an error — Beltr just quietly runs on the CPU."
+          Type="Variable" Display="always" Required="true" Mask="false">all</Config>
+
+  <Config Name="NVIDIA_DRIVER_CAPABILITIES" Target="NVIDIA_DRIVER_CAPABILITIES" Default="compute,utility" Mode=""
+          Description="Driver features exposed to the container. Beltr needs compute (CUDA) and utility (nvidia-smi). It does not need video or graphics — this is not a transcoding container."
+          Type="Variable" Display="advanced" Required="true" Mask="false">compute,utility</Config>
+
+  <Config Name="PUID" Target="PUID" Default="99" Mode=""
+          Description="User ID that owns the files Beltr writes. 99 (nobody) is the Unraid default."
+          Type="Variable" Display="advanced" Required="true" Mask="false">99</Config>
+
+  <Config Name="PGID" Target="PGID" Default="100" Mode=""
+          Description="Group ID that owns the files Beltr writes. 100 (users) is the Unraid default."
+          Type="Variable" Display="advanced" Required="true" Mask="false">100</Config>
+
+  <Config Name="TZ" Target="TZ" Default="Etc/UTC" Mode=""
+          Description="Timezone, e.g. America/New_York. Affects log timestamps."
+          Type="Variable" Display="always" Required="false" Mask="false">Etc/UTC</Config>
+
+  <Config Name="License key" Target="BELTR_LICENSE_KEY" Default="" Mode=""
+          Description="Your key from beltr.app. Activates once against this install and then works offline — updating or recreating the container does not re-activate, as long as you keep the Config path. Leave blank to try Beltr free: five songs, then it asks you to buy. You can also put the key in a file at /config/license.key instead."
+          Type="Variable" Display="always" Required="false" Mask="true"/>
+
+  <Config Name="Host PIN" Target="KARAOKE_HOST_PIN" Default="" Mode=""
+          Description="Six digits that unlock host controls on a phone (skip, reorder, delete). Leave blank and Beltr picks a random one on every start, which changes if the container restarts mid-party."
+          Type="Variable" Display="always" Required="false" Mask="true"/>
+
+  <Config Name="Host password" Target="AUTH_PASSWORD" Default="" Mode=""
+          Description="Optional password on the TV and dashboard screens and the settings endpoints. Phones joining a room are NOT affected. This keeps the household out of your settings; it is not internet-grade authentication."
+          Type="Variable" Display="always" Required="false" Mask="true"/>
+
+  <Config Name="Transcription model" Target="WHISPER_MODEL_SIZE" Default="large-v3" Mode=""
+          Description="Only used for songs no online lyrics provider knows. On a GPU, large-v3 is fast enough that there is little reason to use anything smaller."
+          Type="Variable" Display="advanced" Required="false" Mask="false">large-v3</Config>
+
+  <Config Name="Separation model" Target="DEMUCS_MODEL" Default="htdemucs" Mode=""
+          Description="htdemucs is the default and the only one bundled; anything else downloads on first use. htdemucs_ft is about 4x slower for a small quality gain — affordable on a GPU."
+          Type="Variable" Display="advanced" Required="false" Mask="false">htdemucs</Config>
+
+  <Config Name="Fix permissions" Target="BELTR_FIX_PERMS" Default="first-run" Mode=""
+          Description="first-run: fix ownership once, then only the top-level folders. always: fix everything on every start (slow on a big library). never: leave ownership alone."
+          Type="Variable" Display="advanced" Required="false" Mask="false">first-run</Config>
+</Container>
