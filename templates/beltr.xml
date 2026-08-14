@@ -2,7 +2,7 @@
 <Container version="2">
   <Name>Beltr</Name>
   <Repository>ghcr.io/casavargas/beltr:latest</Repository>
-  <Registry>https://github.com/CasaVargas/beltr-releases/pkgs/container/beltr</Registry>
+  <Registry>https://github.com/orgs/CasaVargas/packages/container/package/beltr</Registry>
   <Network>bridge</Network>
   <MyIP/>
   <Shell>bash</Shell>
