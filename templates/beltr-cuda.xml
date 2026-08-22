@@ -54,7 +54,7 @@ https://github.com/CasaVargas/beltr-releases/releases
   <DateInstalled/>
   <DonateText/>
   <DonateLink/>
-  <Requires>Unraid Nvidia-Driver plugin, and an NVIDIA GPU with driver 525 or newer (the image ships CUDA 12.8 builds of PyTorch). Internet access on first start to activate a license key, or to begin the five-song trial.</Requires>
+  <Requires>Unraid Nvidia-Driver plugin, and an NVIDIA GPU with driver 525 or newer (the image ships a CUDA 12.8 build of ONNX Runtime). Internet access on first start to activate a license key, or to begin the five-song trial.</Requires>
 
   <Config Name="WebUI Port" Target="8477" Default="8477" Mode="tcp"
           Description="Port for the web interface, the TV screen and the phone remotes. Change the host side only if 8477 is already taken."
