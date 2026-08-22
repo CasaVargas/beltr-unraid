@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <Container version="2">
-  <Name>Beltr</Name>
-  <Repository>ghcr.io/casavargas/beltr:latest</Repository>
+  <Name>Beltr-Intel</Name>
+  <Repository>ghcr.io/casavargas/beltr:latest-openvino</Repository>
   <Registry>https://github.com/orgs/CasaVargas/packages/container/package/beltr</Registry>
   <Network>bridge</Network>
   <MyIP/>
@@ -14,9 +14,13 @@ Beltr turns any song in your music library into a karaoke track. It separates th
 
 Everything runs on your server. Nothing about your library is uploaded.
 
+THIS IS THE INTEL GPU BUILD. It runs the vocal separation on an Intel integrated GPU (the one inside most Intel desktop and NAS processors from 6th gen Core onward, including the N100 family) or an Intel Arc A-series card. It needs the Unraid "Intel GPU TOP" plugin installed, which loads the graphics driver, and the GPU passed through: "Extra Parameters" must contain --device=/dev/dri, which this template already sets. Nothing else to install — the Intel compute runtime ships inside the image.
+
+If you have an NVIDIA card, install "Beltr-NVIDIA" instead; with no GPU at all, plain "Beltr". This image will still run without a usable GPU — it falls back to the CPU — so a broken passthrough shows up as "slow", not "broken". Check the GPU panel in Settings after install to confirm the GPU was actually found. Intel Arc B-series and Panther Lake are newer than the driver this image carries and are not supported yet.
+
 FIRST RUN: Beltr downloads about 2 GB of model weights into /cache the first time it needs them. That happens once and survives container updates as long as /cache stays mapped. Watch the container log if a first song seems to sit still — the download is what it's doing.
 
-SPEED: this is the CPU image. On a modern multi-core server, separating a 3-4 minute song takes a few minutes; most songs then get their lyrics instantly from an online lyrics database. The slow case is a song no lyrics provider knows, which falls back to local transcription and can take a couple of minutes. If your server has an NVIDIA GPU, install "Beltr-NVIDIA" instead; it is dramatically faster.
+SPEED: depends heavily on the GPU. An Iris Xe or Arc-class GPU separates a 3-4 minute song in about a minute; an older UHD 630-class iGPU is not much faster than a modern CPU. Most songs then get their lyrics instantly from an online lyrics database; the ones no provider knows fall back to local transcription, which runs on the CPU.
 
 LICENSE: Beltr is a one-time purchase (no subscription). Run it free for five songs, then enter your key from beltr.app in the License key field below — or drop it in a file at /config/license.key. It activates once and then works offline. Container updates and restarts do not re-activate, as long as you keep the Config path mapped; a key covers two installs.
 
@@ -28,29 +32,29 @@ NOTE: Beltr assumes everyone who can reach it is trusted. Set AUTH_PASSWORD to p
   </Overview>
   <Category>MediaApp:Music MediaServer:Music</Category>
   <WebUI>http://[IP]:[PORT:8477]/dashboard</WebUI>
-  <TemplateURL>https://raw.githubusercontent.com/CasaVargas/beltr-unraid/main/templates/beltr.xml</TemplateURL>
+  <TemplateURL>https://raw.githubusercontent.com/CasaVargas/beltr-unraid/main/templates/beltr-openvino.xml</TemplateURL>
   <Icon>https://raw.githubusercontent.com/CasaVargas/beltr-unraid/main/icon.png</Icon>
   <ReadMe>https://raw.githubusercontent.com/CasaVargas/beltr-unraid/main/README.md</ReadMe>
-  <ExtraSearchTerms>karaoke sing singalong lyrics vocals stems demucs whisper party microphone cdg mp3g</ExtraSearchTerms>
+  <ExtraSearchTerms>karaoke sing singalong lyrics vocals stems demucs whisper party microphone cdg mp3g intel igpu arc openvino quicksync gpu</ExtraSearchTerms>
   <License>Proprietary — one-time purchase, five-song free trial</License>
   <Screenshot>https://raw.githubusercontent.com/CasaVargas/beltr-unraid/main/screenshots/tv-lyrics.webp</Screenshot>
   <Screenshot>https://raw.githubusercontent.com/CasaVargas/beltr-unraid/main/screenshots/dashboard.png</Screenshot>
   <Screenshot>https://raw.githubusercontent.com/CasaVargas/beltr-unraid/main/screenshots/phone-remote.webp</Screenshot>
-  <Date>2026-08-14</Date>
+  <Date>2026-08-22</Date>
   <Changes>
-### 2026-08-14
+### 2026-08-22
 
-First Community Applications release. The container tracks the Beltr desktop
-release line — per-version notes are at
+First Intel GPU build. The container tracks the Beltr desktop release line —
+per-version notes are at
 https://github.com/CasaVargas/beltr-releases/releases
   </Changes>
-  <ExtraParams/>
+  <ExtraParams>--device=/dev/dri</ExtraParams>
   <PostArgs/>
   <CPUset/>
   <DateInstalled/>
   <DonateText/>
   <DonateLink/>
-  <Requires>Internet access on first start to activate a license key (or to begin the five-song trial). After that Beltr keeps working offline.</Requires>
+  <Requires>Unraid Intel GPU TOP plugin, and an Intel GPU from 6th gen Core (Skylake) through Arrow Lake / Lunar Lake, or an Arc A-series card. Internet access on first start to activate a license key, or to begin the five-song trial.</Requires>
 
   <Config Name="WebUI Port" Target="8477" Default="8477" Mode="tcp"
           Description="Port for the web interface, the TV screen and the phone remotes. Change the host side only if 8477 is already taken."
@@ -71,6 +75,14 @@ https://github.com/CasaVargas/beltr-releases/releases
   <Config Name="Model cache" Target="/cache" Default="/mnt/user/appdata/beltr-cache" Mode="rw"
           Description="Downloaded AI model weights, about 2 GB. Keep this mapped or every container update re-downloads them. Faster storage makes model loading quicker."
           Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/beltr-cache</Config>
+
+  <Config Name="GPU device" Target="BELTR_MDX_OPENVINO_DEVICE" Default="GPU" Mode=""
+          Description="Which OpenVINO device runs the separation. GPU is the first Intel GPU found and is right for nearly everyone. GPU.1 picks a second Intel GPU (say, an Arc card in a box that also has an iGPU). Getting this wrong is not an error — Beltr just quietly runs on the CPU."
+          Type="Variable" Display="advanced" Required="false" Mask="false">GPU</Config>
+
+  <Config Name="GPU precision" Target="BELTR_MDX_OPENVINO_PRECISION" Default="FP32" Mode=""
+          Description="FP32 is the default and matches the CPU output. FP16 is usually faster on Intel GPUs but its separation quality has not been measured here; try it if separation feels slow and listen to the result."
+          Type="Variable" Display="advanced" Required="false" Mask="false">FP32</Config>
 
   <Config Name="PUID" Target="PUID" Default="99" Mode=""
           Description="User ID that owns the files Beltr writes. 99 (nobody) is the Unraid default."

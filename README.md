@@ -16,20 +16,21 @@ Everything runs on your server. Nothing about your library is uploaded.
 
 ## Which template
 
-Install one, not both. They share the same default paths.
+Install one of the three. They share the same default paths.
 
 | Template | Image | Use it when |
 |---|---|---|
 | **Beltr** | `ghcr.io/casavargas/beltr:latest` | Any server. Separating a song takes a few minutes on a modern multi-core CPU. |
 | **Beltr-NVIDIA** | `ghcr.io/casavargas/beltr:latest-cuda` | You have an NVIDIA GPU and the Unraid Nvidia-Driver plugin. Separation drops to well under a minute. |
+| **Beltr-Intel** | `ghcr.io/casavargas/beltr:latest-openvino` | Your server has an Intel processor with integrated graphics (6th gen Core onward, N100 included) or an Arc A-series card, and the Unraid Intel GPU TOP plugin. An Iris Xe or Arc-class GPU separates a song in about a minute; older UHD-class iGPUs gain less. |
 
-The GPU image falls back to the CPU if passthrough is misconfigured, so a broken
-setup looks *slow* rather than broken. Confirm the card was found in Settings
-after install.
+Both GPU images fall back to the CPU if passthrough is misconfigured, so a
+broken setup looks *slow* rather than broken. Confirm the GPU was found in
+Settings after install.
 
 ## Install
 
-**Community Applications:** Apps, search Beltr, pick one of the two, set the
+**Community Applications:** Apps, search Beltr, pick one of the three, set the
 four paths, Apply. Then open the WebUI, go to Settings, and add `/media` as a
 music folder. Beltr never scans your library until you point it at one.
 
@@ -52,7 +53,7 @@ docker run -d --name beltr \
 
 ```bash
 cp .env.example .env        # edit PUID/PGID and the paths
-docker compose --profile cpu up -d      # or --profile gpu
+docker compose --profile cpu up -d      # or --profile gpu (NVIDIA), --profile openvino (Intel)
 ```
 
 ## The four paths

@@ -108,13 +108,7 @@ https://github.com/CasaVargas/beltr-releases/releases
           Description="Optional password on the TV and dashboard screens and the settings endpoints. Phones joining a room are NOT affected. This keeps the household out of your settings; it is not internet-grade authentication."
           Type="Variable" Display="always" Required="false" Mask="true"/>
 
-  <Config Name="Transcription model" Target="WHISPER_MODEL_SIZE" Default="large-v3" Mode=""
-          Description="Only used for songs no online lyrics provider knows. On a GPU, large-v3 is fast enough that there is little reason to use anything smaller."
-          Type="Variable" Display="advanced" Required="false" Mask="false">large-v3</Config>
 
-  <Config Name="Separation model" Target="DEMUCS_MODEL" Default="htdemucs" Mode=""
-          Description="htdemucs is the default and the only one bundled; anything else downloads on first use. htdemucs_ft is about 4x slower for a small quality gain — affordable on a GPU."
-          Type="Variable" Display="advanced" Required="false" Mask="false">htdemucs</Config>
 
   <Config Name="Fix permissions" Target="BELTR_FIX_PERMS" Default="first-run" Mode=""
           Description="first-run: fix ownership once, then only the top-level folders. always: fix everything on every start (slow on a big library). never: leave ownership alone."

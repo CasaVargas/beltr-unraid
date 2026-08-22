@@ -3,17 +3,18 @@
 # in templates/ carries the same settings with descriptions.
 #
 #   cp .env.example .env    # then edit
-#   docker compose --profile cpu up -d      # CPU only
-#   docker compose --profile gpu up -d      # NVIDIA GPU
+#   docker compose --profile cpu up -d        # CPU only
+#   docker compose --profile gpu up -d        # NVIDIA GPU
+#   docker compose --profile openvino up -d   # Intel GPU (iGPU or Arc)
 #
-# Pick ONE profile. Both services publish the same port and share the same
-# volumes, so running them together is a port clash and two writers on one
-# SQLite database.
+# Pick ONE profile. All three services publish the same port and share the
+# same volumes, so running two together is a port clash and two writers on
+# one SQLite database.
 #
 # Open http://<server>:8477/dashboard to manage, /tv on the screen showing
 # lyrics. Phones scan the QR from the TV — no app, no extra config, as long as
 # the TV was opened at an address the phones can also reach (i.e. not
-# localhost). See docs/deploy/UNRAID.md.
+# localhost). See docs/UNRAID.md.
 
 x-beltr-common: &beltr-common
   restart: unless-stopped
@@ -35,11 +36,12 @@ x-beltr-common: &beltr-common
     # Whisper only runs when no lyrics provider has the song, so most tracks
     # never touch it. On a CPU-only box where it does run, large-v3-turbo is
     # the difference between usable and not.
-    WHISPER_MODEL_SIZE: "${WHISPER_MODEL_SIZE:-large-v3}"
-    DEMUCS_MODEL: "${DEMUCS_MODEL:-htdemucs}"
+    # (DEMUCS_MODEL / BELTR_DEMUCS_OVERLAP / BELTR_DEMUCS_SEGMENT were passed
+    # through here. Demucs was deleted in migration Phase 1 and config.py stopped
+    # reading them, so they had become three env vars that did nothing.)
     # Optional password on the TV/dashboard pages and the management endpoints.
     # Room joins stay open either way. Not an internet-facing auth layer —
-    # see docs/deploy/UNRAID.md before exposing this beyond your LAN.
+    # see docs/UNRAID.md before exposing this beyond your LAN.
     AUTH_PASSWORD: "${AUTH_PASSWORD:-}"
     BELTR_FIX_PERMS: "${BELTR_FIX_PERMS:-first-run}"
   volumes:
@@ -78,6 +80,22 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
+
+  beltr-openvino:
+    <<: *beltr-common
+    profiles: ["openvino"]
+    container_name: beltr-openvino
+    image: "ghcr.io/casavargas/beltr:${BELTR_TAG:-latest}-openvino"
+    # The Intel GPU is just a device node — no runtime, no toolkit, nothing to
+    # install on the host beyond the i915/xe kernel driver (present on any
+    # desktop distro; on Unraid the Intel GPU TOP plugin loads it). The node
+    # comes in with the host's render-group ownership and the entrypoint joins
+    # Beltr's service account to that group, so no `group_add` is needed.
+    # Verify with:
+    #   ls -l /dev/dri            # renderD128 should exist on the host
+    # and after a first separation, docs/UNRAID.md's accelerator check.
+    devices:
+      - /dev/dri:/dev/dri
 
 volumes:
   beltr-cache:

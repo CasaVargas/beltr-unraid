@@ -14,6 +14,13 @@ remotes are all just web pages this container serves.
 | `http://<server>:8477/tv` | The lyrics screen, with a QR code | Whatever screen you're singing at |
 | `http://<server>:8477/remote` | Phone remote | Guests, by scanning the QR |
 
+The bare address (`http://<server>:8477`) redirects to the dashboard, and so
+does Unraid's **WebUI** button — both when the container was installed from the
+Community Applications template and when it was added by hand or by
+docker-compose, which have no template to read a WebUI path out of. Older
+containers landed on `/tv` in those cases; nothing needs re-creating, the
+redirect is server-side.
+
 Everything runs locally. Songs never leave the server. Lyrics are looked up
 against [LRCLIB](https://lrclib.net) unless you point `LRCLIB_BASE_URL` at your
 own mirror; if no provider has a song, Beltr transcribes it locally.
@@ -25,7 +32,8 @@ own mirror; if no provider has a song, Beltr transcribes it locally.
 ### Community Applications
 
 1. **Apps** → search **Beltr**.
-2. Pick **Beltr** (CPU) or **Beltr-NVIDIA** (needs an NVIDIA GPU — see below).
+2. Pick **Beltr** (CPU), **Beltr-NVIDIA** (an NVIDIA GPU) or **Beltr-Intel**
+   (an Intel iGPU or Arc card) — see the two GPU sections below.
 3. Set the four paths. Defaults are sensible; the section on shares below
    explains why they are what they are.
 4. **Apply**, wait for the pull, then open the WebUI.
@@ -46,8 +54,9 @@ docker run -d --name beltr \
   ghcr.io/casavargas/beltr:latest
 ```
 
-Add `--gpus all` and use `ghcr.io/casavargas/beltr:latest-cuda` for the GPU
-image.
+Add `--gpus all` and use `ghcr.io/casavargas/beltr:latest-cuda` for the NVIDIA
+image; add `--device /dev/dri` and use `ghcr.io/casavargas/beltr:latest-openvino`
+for the Intel one.
 
 ### Compose
 
@@ -56,10 +65,10 @@ image.
 
 ```bash
 cp .env.example .env    # edit PUID/PGID and the paths
-docker compose --profile cpu up -d    # or --profile gpu
+docker compose --profile cpu up -d    # or --profile gpu (NVIDIA), --profile openvino (Intel)
 ```
 
-Pick one profile. Both publish the same port and share the same volumes.
+Pick one profile. All three publish the same port and share the same volumes.
 
 ---
 
@@ -158,21 +167,81 @@ Three ways to tell, cheapest first:
 # 1. Does the container see the GPU at all?
 docker exec beltr-gpu nvidia-smi
 
-# 2. Does torch?
-docker exec beltr-gpu python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+# 2. Does ONNX Runtime have the CUDA provider, and is Beltr asking for it?
+docker exec beltr-gpu python -c "import onnxruntime as o, os; print(o.get_available_providers(), '| asking for:', os.environ.get('BELTR_MDX_EP'))"
 
-# 3. Watch nvidia-smi on the host while a song separates — you should see
+# 3. Did a separation ACTUALLY run on it? This is the only one that proves
+#    dispatch — the list above reports what the build supports, and names CUDA
+#    even when the CUDA libraries cannot be loaded at all.
+docker exec beltr-gpu sh -c 'cat /config/stems/*/_job.json' | head
+
+# 4. Watch nvidia-smi on the host while a song separates — you should see
 #    the python process appear and VRAM climb.
 ```
 
-The driver must be new enough for CUDA 12.8 (roughly 525+); the image ships
-PyTorch built against cu128 because earlier CUDA builds have no kernels for
-RTX 50-series cards.
+In (3), `accelerator` is the provider Beltr asked for and `accelerator_actual`
+is what ONNX Runtime accepted. If they disagree, the separation silently ran on
+the CPU.
 
-**AMD and Intel GPUs are not supported.** Not an oversight: Beltr's separation
-model runs a complex-valued STFT that the DirectML/ROCm paths either abort on
-or have never been validated against. They would be slower than the CPU path
-and less reliable.
+The driver must be new enough for CUDA 12.8 (roughly 525+); the image ships
+onnxruntime-gpu built against CUDA 12.8 because earlier CUDA builds have no
+kernels for RTX 50-series cards.
+
+---
+
+## GPU passthrough (Intel)
+
+The `-openvino` image runs the separation on Intel integrated graphics — the
+GPU inside most Intel desktop and NAS processors since 6th gen Core, N100
+boxes included — or an Arc A-series card, through ONNX Runtime's OpenVINO
+provider. How much it helps depends on the part: an Iris Xe or Arc-class GPU
+gets a 3-4 minute song done in about a minute, while an older UHD 630-class
+iGPU is not much faster than a modern CPU. Cheap to try: the image is ~200 MB
+bigger than the CPU one and falls back to the CPU if the GPU is unusable.
+
+1. Install the **Intel GPU TOP** plugin (Apps → search "Intel GPU TOP"). It
+   loads the `i915` driver; `/dev/dri/renderD128` appears on the host.
+2. Install the **Beltr-Intel** template. It already sets `--device=/dev/dri`
+   in Extra Parameters. Nothing else goes on the host — the Intel compute
+   runtime ships inside the image, and the container joins its service
+   account to whatever group owns the device node.
+3. Leave **GPU device** at `GPU` unless the box has two Intel GPUs (an Arc
+   card beside an iGPU: `GPU.1` picks the second). **GPU precision** stays at
+   `FP32`; `FP16` is usually faster and unmeasured for quality — try it and
+   listen.
+
+**Check that it actually took**, the same way as NVIDIA — a broken passthrough
+only ever looks like "slow":
+
+```bash
+# 1. Does the container see a render node, and can its user open it?
+docker exec beltr-openvino ls -l /dev/dri
+docker logs beltr-openvino 2>&1 | grep -i "joined group"
+
+# 2. Does ONNX Runtime have the OpenVINO provider, and is Beltr asking for it?
+docker exec beltr-openvino python -c "import onnxruntime as o, os; print(o.get_available_providers(), '| asking for:', os.environ.get('BELTR_MDX_EP'))"
+
+# 3. Did a separation ACTUALLY run on it? `accelerator_actual` must read
+#    OpenVINOExecutionProvider. OpenVINO refuses the session outright when it
+#    cannot see a GPU, so a fallback shows up here as CPUExecutionProvider.
+docker exec beltr-openvino sh -c 'cat /config/stems/*/_job.json' | head
+
+# 4. Watch the GPU on the host while a song separates:
+intel_gpu_top     # from the Intel GPU TOP plugin; the Render/3D bar should move
+```
+
+The first separation after install (and after each image update) is slower:
+OpenVINO compiles the model's kernels for your GPU and caches them under
+`/cache/openvino-cache`. Every separation after that skips the compile.
+
+**Supported parts:** Skylake (6th gen) through Arrow Lake / Lunar Lake, and
+Arc A-series. The image carries Intel's 24.35 compute runtime, the last one
+that still covers the 6th–10th gen iGPUs most NAS boxes have; Arc B-series and
+Panther Lake need a newer runtime and are not supported yet.
+
+**AMD GPUs are not supported.** ONNX Runtime's AMD path (MIGraphX) needs a
+full ROCm userspace in the image — several gigabytes — and official support
+for the APUs in most AMD NAS boxes is thin. It is on the list, not off it.
 
 ---
 
@@ -183,9 +252,10 @@ first use Beltr downloads roughly 2 GB into `/cache`:
 
 | Model | Size | When |
 |---|---|---|
-| Demucs (htdemucs) | ~80 MB | Bundled — already there |
+| Separation (MDX-Net) | ~65 MB | Bundled — already there |
+| Voice activity (Silero VAD) | ~2 MB | Bundled — already there |
 | Word alignment (wav2vec2) | ~360 MB | First song processed |
-| Transcription (Whisper `large-v3`) | ~1.5 GB | First song **no lyrics provider knows** |
+| Transcription (Parakeet-TDT) | ~600 MB | First song **no lyrics provider knows** |
 
 This is once, and it survives image updates as long as `/cache` stays mapped.
 
@@ -208,7 +278,14 @@ Whisper's download also shows as a progress bar in the dashboard.
 ## How long does a song take?
 
 Measured on a **4-core CPU** against a **3.5-minute track**, from this repo's
-own benchmarks (`bench/results_separation.json`, `bench/results_postsep.json`):
+own benchmarks (`bench/results_separation.json`, `bench/results_postsep.json`).
+
+> **These figures predate the ONNX migration and have not been re-measured.**
+> Every engine in the table below was replaced: Demucs by MDX-Net on ONNX
+> Runtime, and local transcription by Parakeet-TDT. MDX is known to be *heavier*
+> than htdemucs on CPU (docs/audio-pipeline-migration.md quantifies it for the
+> desktop), so treat the separation row as a floor, not an estimate. The GPU
+> column is now the accelerated ONNX Runtime rather than CUDA PyTorch.
 
 | Stage | CPU (4 cores) | With an NVIDIA GPU |
 |---|---|---|
@@ -229,15 +306,30 @@ most of a mainstream library never runs Whisper at all. When it does run,
 often (obscure tracks, non-English, live recordings), set:
 
 ```
-WHISPER_MODEL_SIZE=large-v3-turbo
 ```
 
 Substantially faster, slightly less accurate on difficult vocals. On a GPU
 there's little reason to move off `large-v3`.
 
-Songs are processed **one at a time** by design — the separator runs a
-sequential queue so two jobs can't race each other into an out-of-memory kill.
-Queue a batch and leave it; it works through them.
+Songs are **separated** one at a time — the separator runs a sequential queue,
+so two Demucs jobs never run together. Queue a batch and leave it; it works
+through them.
+
+Post-processing is a separate matter. On a GPU, Beltr starts the next song's
+separation while the previous song's post-processing (vocal analysis, lyrics,
+alignment) is still running — the two use different memory (VRAM vs system
+RAM), so the peak doesn't add up. On **CPU-only** they'd draw from the same
+pool, so Beltr turns that overlap off automatically. You only need to think
+about this if you set `BELTR_QUEUE_OVERLAP` by hand.
+
+### If songs fail with no error during a big import
+
+That's the out-of-memory killer, and it means the container's memory limit is
+too low — the process is killed outright, so nothing gets logged. Beltr now
+reports the detected limit at startup and warns when it's too low. Give it
+**at least 8 GB** for CPU separation; Demucs alone peaks around 1.6 GB before
+lyrics and alignment are counted. Lowering the limit makes this worse, not
+better.
 
 ---
 
@@ -250,8 +342,6 @@ Queue a batch and leave it; it works through them.
 | `TZ` | `UTC` | Log timestamps |
 | `KARAOKE_HOST_PIN` | random | **Set this.** Unset, the PIN that unlocks host controls on a phone changes every restart |
 | `AUTH_PASSWORD` | unset | Password on the TV/dashboard screens — see the security note below |
-| `WHISPER_MODEL_SIZE` | `large-v3` | `large-v3-turbo` on CPU-only servers |
-| `DEMUCS_MODEL` | `htdemucs` | `htdemucs_ft` is ~4× slower for a small quality gain — reasonable on a GPU |
 | `LRCLIB_BASE_URL` | lrclib.net | Point at your own LRCLIB mirror |
 | `BELTR_FIX_PERMS` | `first-run` | `always` if ownership keeps drifting; `never` if you manage it yourself |
 | `ENABLE_*` | mostly on | Individual feature flags — see the main README |
@@ -325,15 +415,18 @@ the server's LAN address (`http://tower.local:8477/tv` or
 phone.
 
 **The dashboard says no GPU detected but I passed one through.**
-Run the three checks in the GPU section above. Most often it's a missing
-`--runtime=nvidia`, a `NVIDIA_VISIBLE_DEVICES` UUID typo, or the Nvidia-Driver
-plugin not loaded after an Unraid update. Also confirm you installed the
-**Beltr-NVIDIA** template: the CPU image has no CUDA build of PyTorch and will
-never report a GPU.
+Run the checks in the GPU section above for your vendor. On NVIDIA it's most
+often a missing `--runtime=nvidia`, a `NVIDIA_VISIBLE_DEVICES` UUID typo, or the Nvidia-Driver
+plugin not loaded after an Unraid update; on Intel, a missing
+`--device=/dev/dri` or the Intel GPU TOP plugin not installed (no `i915`, no
+render node). Also confirm you installed the GPU template — **Beltr-NVIDIA**
+or **Beltr-Intel**: the CPU image ships a CPU-only ONNX Runtime and will never
+report a GPU.
 
-When it *is* working, the GPU panel reads **Built in** with your card's name and
-a torch/CUDA line — the container ships CUDA PyTorch, so there is no "GPU pack"
-to download here and no install button. That is the correct state, not a
+When it *is* working, the GPU panel reads **Built in** with an
+`ORT CUDAExecutionProvider` (or `ORT OpenVINOExecutionProvider`) line — the
+container ships an accelerated ONNX Runtime, so there is no "GPU pack" to
+download here and no install button. That is the correct state, not a
 half-configured one.
 
 **Native TV apps can't find the server.**
@@ -358,7 +451,6 @@ on a plain-http page.
 
 **Everything is slow and the log mentions Whisper.**
 You're hitting the transcription path. See the timings section — the fix is
-usually `WHISPER_MODEL_SIZE=large-v3-turbo` or a GPU.
 
 **Out of space mid-import.**
 Check `/library`, not `/config`. Stems are the bulk of it, and

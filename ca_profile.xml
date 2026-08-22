@@ -7,13 +7,15 @@ transcribed on your server, and the words go up on a TV while everyone's phone
 becomes a remote — they scan the QR code on screen, and there is no app to
 install.
 
-Nothing about your library is uploaded. Two containers are published here:
+Nothing about your library is uploaded. Three containers are published here:
 
 - **Beltr** — the CPU image. Runs anywhere.
 - **Beltr-NVIDIA** — the same app built against CUDA, for servers with an
   NVIDIA GPU and the Nvidia-Driver plugin. Dramatically faster.
+- **Beltr-Intel** — the same app built for Intel integrated graphics and Arc
+  cards, for servers with an Intel processor and the Intel GPU TOP plugin.
 
-Install one or the other, not both — they share the same default paths.
+Install one of the three, not more — they share the same default paths.
 
 Beltr is a one-time purchase, not a subscription. The container runs free for
 five songs so you can try it against your own music before buying a key.
