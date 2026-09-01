@@ -23,7 +23,9 @@ redirect is server-side.
 
 Everything runs locally. Songs never leave the server. Lyrics are looked up
 against [LRCLIB](https://lrclib.net) unless you point `LRCLIB_BASE_URL` at your
-own mirror; if no provider has a song, Beltr transcribes it locally.
+own mirror, and force-aligned to the vocal stem for word timing. If no provider
+has a song, Beltr drafts the lyrics locally with an on-device speech model
+(Parakeet-TDT) and force-aligns that draft instead.
 
 ---
 
@@ -143,6 +145,20 @@ when it imports it and never writes back to your music share.
 
 ---
 
+## Which GPU, at a glance
+
+GPU acceleration only speeds up **vocal separation** (and, on the NVIDIA image,
+local transcription). Everything else, and every image, works on the CPU alone.
+
+| Where Beltr runs | NVIDIA | Intel iGPU / Arc A-series | AMD | Apple Silicon |
+|---|---|---|---|---|
+| **Container** (this guide) | `latest-cuda` / **Beltr-NVIDIA** | `latest-openvino` / **Beltr-Intel** (6th gen Core through Arrow / Lunar Lake, Arc A; Arc B and Panther Lake not yet) | **Not supported** (see below) | n/a: Docker on macOS has no GPU passthrough |
+| **Desktop app** | Optional CUDA GPU pack (Windows, Linux) | Optional DirectML GPU pack (Windows) | Optional DirectML GPU pack (Windows, where the driver supports it) | Built in |
+
+Install one container template, not two: they share the same default paths.
+
+---
+
 ## GPU passthrough (NVIDIA)
 
 Worth doing: separation goes from minutes to well under a minute.
@@ -241,7 +257,9 @@ Panther Lake need a newer runtime and are not supported yet.
 
 **AMD GPUs are not supported.** ONNX Runtime's AMD path (MIGraphX) needs a
 full ROCm userspace in the image — several gigabytes — and official support
-for the APUs in most AMD NAS boxes is thin. It is on the list, not off it.
+for the APUs in most AMD NAS boxes is thin. It is on the list, not off it. On
+the Windows desktop app, AMD and Intel graphics can use the optional DirectML
+GPU pack instead; that path does not exist in the container.
 
 ---
 
@@ -268,10 +286,10 @@ docker logs -f beltr
 You'll see a line at startup naming what's cached and what isn't:
 
 ```
-Model cache /cache: Whisper large-v3; word alignment (wav2vec2, ~360 MB) will download on first use
+Model cache /cache: word alignment (wav2vec2, ~360 MB), transcription (Parakeet-TDT, ~600 MB) will download on first use
 ```
 
-Whisper's download also shows as a progress bar in the dashboard.
+Model downloads also show as a progress bar in the dashboard.
 
 ---
 
@@ -289,7 +307,7 @@ own benchmarks (`bench/results_separation.json`, `bench/results_postsep.json`).
 
 | Stage | CPU (4 cores) | With an NVIDIA GPU |
 |---|---|---|
-| Vocal separation (Demucs) | **86 s** | seconds |
+| Vocal separation (measured on Demucs; now MDX-Net) | **86 s** | seconds |
 | Word alignment (wav2vec2) | **89 s** | seconds |
 | Pitch analysis | 9 s | faster |
 | Lyrics from a provider (LRCLIB) | instant | instant |
@@ -301,18 +319,17 @@ stages scale with cores.
 
 **Transcription is the case that hurts, and it's the uncommon one.** Beltr
 tries lyrics providers first and only transcribes when none has the song — so
-most of a mainstream library never runs Whisper at all. When it does run,
-`large-v3` on CPU is by far the longest stage in the pipeline. If you hit it
-often (obscure tracks, non-English, live recordings), set:
-
-```
-```
-
-Substantially faster, slightly less accurate on difficult vocals. On a GPU
-there's little reason to move off `large-v3`.
+most of a mainstream library never runs the transcription model at all. When
+it does run, Parakeet-TDT on CPU is the longest stage in the pipeline; the
+NVIDIA image accelerates it, the Intel image does not (transcription stays on
+the CPU there). There is no smaller-model knob any more: the retired
+`WHISPER_MODEL_SIZE` is ignored. If you hit this path often (obscure tracks,
+live recordings), the practical fix is to paste the lyrics or import an `.lrc`
+from the song's detail panel, which skips transcription and goes straight to
+alignment.
 
 Songs are **separated** one at a time — the separator runs a sequential queue,
-so two Demucs jobs never run together. Queue a batch and leave it; it works
+so two separations never run together. Queue a batch and leave it; it works
 through them.
 
 Post-processing is a separate matter. On a GPU, Beltr starts the next song's
@@ -325,11 +342,41 @@ about this if you set `BELTR_QUEUE_OVERLAP` by hand.
 ### If songs fail with no error during a big import
 
 That's the out-of-memory killer, and it means the container's memory limit is
-too low — the process is killed outright, so nothing gets logged. Beltr now
-reports the detected limit at startup and warns when it's too low. Give it
-**at least 8 GB** for CPU separation; Demucs alone peaks around 1.6 GB before
-lyrics and alignment are counted. Lowering the limit makes this worse, not
-better.
+too low. The process is killed outright, so nothing gets logged: no traceback,
+no error, and if the whole container goes, no `Beltr server stopped` line
+either. Beltr reports the detected limit at startup, warns when it's too low
+for the variant you're running, and says on the *next* start whether the
+previous run ended without a clean shutdown. Give it **at least 8 GB** for CPU
+separation; separation alone peaked around 1.6 GB on Demucs, and MDX-Net is
+heavier on the CPU, before lyrics and alignment are counted. Lowering the limit makes this worse, not better.
+
+A support bundle collected after the container has already restarted carries a
+`Memory history` section that survives the restart. The live `Memory` section
+above it will look healthy, because the kernel's own peak counter dies with the
+cgroup — read the history one.
+
+#### A note on the Intel image, and a correction
+
+v1.60.1's notes said the `-openvino` image needs about 10 GB because integrated
+graphics borrows from the container's memory. That was wrong, and it is
+withdrawn. The kills behind it turned out to be word alignment in Beltr's main
+process running a whole sung passage through the model in one go, which every
+build does, with or without a GPU. Since v1.60.2 alignment runs in bounded
+windows and stays around 1.3 GB regardless of song length. The Intel image
+shares the plain image's memory guidance above.
+
+The Intel-specific settings are still worth knowing, for speed rather than
+memory:
+
+| Variable | Try | What it does |
+|---|---|---|
+| `BELTR_MDX_OPENVINO_PRECISION` | `FP16` | Usually faster on Intel GPUs and halves what the GPU holds. Unmeasured for quality here; listen to the result. |
+| `BELTR_MDX_OPENVINO_LOAD_CONFIG` | raw JSON | OpenVINO runtime properties, e.g. `{"GPU": {"PERFORMANCE_HINT": "LATENCY", "NUM_STREAMS": "1"}}` (the default). `off` sends none. |
+| `BELTR_MDX_OPENVINO_DEVICE` | `CPU` | Takes separation off the GPU entirely while staying on OpenVINO. A bisect tool, not a setting to live on. |
+| `BELTR_WARM_SEPARATION_IDLE_S` | `10` | How long the separation worker holds its model between songs. Already the default under a memory limit. |
+
+If you want to rule the GPU out completely, `BELTR_MDX_EP=CPUExecutionProvider`
+falls all the way back to plain ONNX Runtime on the CPU.
 
 ---
 
@@ -344,6 +391,8 @@ better.
 | `AUTH_PASSWORD` | unset | Password on the TV/dashboard screens — see the security note below |
 | `LRCLIB_BASE_URL` | lrclib.net | Point at your own LRCLIB mirror |
 | `BELTR_FIX_PERMS` | `first-run` | `always` if ownership keeps drifting; `never` if you manage it yourself |
+| `BELTR_WARM_SEPARATION_IDLE_S` | `60`, or `10` under a memory limit | How long the separation worker holds its model when idle. Lower it if memory is tight, raise it to trade memory for speed on a big import |
+| `BELTR_MEMORY_SAMPLE_S` | `15` | How often the memory high-water mark is sampled in a container. Rarely worth touching |
 | `ENABLE_*` | mostly on | Individual feature flags — see the main README |
 
 ### A note on security, stated plainly
@@ -361,6 +410,11 @@ deliberately leaves open is still unauthenticated. Do not port-forward this
 container. If you want to reach it from outside your network, put a reverse
 proxy with real authentication (or a VPN / Tailscale) in front of it — the same
 advice the desktop app gives for its tunnel feature.
+
+If you are setting up that reverse proxy, read
+[the reverse-proxy guide](REVERSE-PROXY.md) first. It covers what the proxy
+*must* pass through — the `/ws` WebSocket upgrade, byte-range audio, long
+separation timeouts — and what to type into each TV app and phone remote.
 
 ### Microphones need HTTPS
 
@@ -440,17 +494,24 @@ Change the *host* side of the port mapping only. Leave the container port at
 that starts fine and answers nothing.
 
 **Music-video download fails with "No supported JavaScript runtime could be found".**
-Fixed in images built after this note — the container now ships Node, which
-yt-dlp needs to solve YouTube's player challenges. If you see it, you're on an
-older image: pull the current one and recreate the container.
+yt-dlp needs a JavaScript runtime to solve YouTube's player challenges, and it
+arrives with yt-dlp itself: Settings → *Music-video backgrounds* → install the
+downloader fetches both halves into `/cache`, where they survive image updates.
+Older images (v1.57.9 through v1.60.4) shipped Debian's Node 18 for this, which
+yt-dlp refuses — it requires Node 22+ — *and* which made that installer skip the
+runtime half as already-present, so the pair could never complete. Pull the
+current image, recreate the container, and run the installer again: with no
+Node in the way it now installs the runtime it actually needs.
 
 **"Mic unavailable: browsers only allow microphone access over HTTPS or on localhost."**
 Not a bug and not fixable from inside Beltr — see "Microphones need HTTPS"
 above for the three ways out. Everything except live mic capture works normally
 on a plain-http page.
 
-**Everything is slow and the log mentions Whisper.**
-You're hitting the transcription path. See the timings section — the fix is
+**Everything is slow and the log mentions Parakeet or transcribing.**
+You're hitting the transcription path: no lyrics provider had the song. See
+the timings section. The fix is to give Beltr the lyrics (paste them or import
+an `.lrc` from the song's detail panel) so it only has to align them.
 
 **Out of space mid-import.**
 Check `/library`, not `/config`. Stems are the bulk of it, and
