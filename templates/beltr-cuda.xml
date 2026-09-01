@@ -35,7 +35,7 @@ NOTE: Beltr assumes everyone who can reach it is trusted. Set AUTH_PASSWORD to p
   <TemplateURL>https://raw.githubusercontent.com/CasaVargas/beltr-unraid/main/templates/beltr-cuda.xml</TemplateURL>
   <Icon>https://raw.githubusercontent.com/CasaVargas/beltr-unraid/main/icon.png</Icon>
   <ReadMe>https://raw.githubusercontent.com/CasaVargas/beltr-unraid/main/README.md</ReadMe>
-  <ExtraSearchTerms>karaoke sing singalong lyrics vocals stems demucs whisper party microphone cdg mp3g nvidia gpu cuda</ExtraSearchTerms>
+  <ExtraSearchTerms>karaoke sing singalong lyrics vocals stems vocal-remover mdx-net party microphone cdg mp3g midi kar nvidia gpu cuda</ExtraSearchTerms>
   <License>Proprietary — one-time purchase, five-song free trial</License>
   <Screenshot>https://raw.githubusercontent.com/CasaVargas/beltr-unraid/main/screenshots/tv-lyrics.webp</Screenshot>
   <Screenshot>https://raw.githubusercontent.com/CasaVargas/beltr-unraid/main/screenshots/dashboard.png</Screenshot>
