@@ -10,13 +10,13 @@
   <Support>https://github.com/CasaVargas/beltr-releases/issues</Support>
   <Project>https://beltr.app</Project>
   <Overview>
-Beltr turns any song in your music library into a karaoke track. It separates the vocals out with a local AI model, finds or transcribes synced lyrics, and displays them on a TV while everyone's phone acts as a remote — scan the QR code on screen, no app to install.
+Beltr turns any song in your music library into a karaoke track. It separates the vocals out with a local AI model, finds synced lyrics online (or drafts them locally when no provider has the song), force-aligns them to the vocal word by word, and displays them on a TV while everyone's phone acts as a remote — scan the QR code on screen, no app to install.
 
 Everything runs on your server. Nothing about your library is uploaded.
 
 FIRST RUN: Beltr downloads about 2 GB of model weights into /cache the first time it needs them. That happens once and survives container updates as long as /cache stays mapped. Watch the container log if a first song seems to sit still — the download is what it's doing.
 
-SPEED: this is the CPU image. On a modern multi-core server, separating a 3-4 minute song takes a few minutes; most songs then get their lyrics instantly from an online lyrics database. The slow case is a song no lyrics provider knows, which falls back to local transcription and can take a couple of minutes. If your server has an NVIDIA GPU, install "Beltr-NVIDIA" instead; it is dramatically faster.
+SPEED: this is the CPU image. On a modern multi-core server, separating a 3-4 minute song takes a few minutes; most songs then get their lyrics instantly from an online lyrics database. The slow case is a song no lyrics provider knows, which falls back to local transcription and can take a couple of minutes. If your server has an NVIDIA GPU, install "Beltr-NVIDIA" instead; it is dramatically faster. An Intel processor with integrated graphics (6th gen Core onward, N100 included) or an Arc A-series card can use "Beltr-Intel". AMD GPUs are not supported in the container.
 
 LICENSE: Beltr is a one-time purchase (no subscription). Run it free for five songs, then enter your key from beltr.app in the License key field below — or drop it in a file at /config/license.key. It activates once and then works offline. Container updates and restarts do not re-activate, as long as you keep the Config path mapped; a key covers two installs.
 
@@ -31,13 +31,19 @@ NOTE: Beltr assumes everyone who can reach it is trusted. Set AUTH_PASSWORD to p
   <TemplateURL>https://raw.githubusercontent.com/CasaVargas/beltr-unraid/main/templates/beltr.xml</TemplateURL>
   <Icon>https://raw.githubusercontent.com/CasaVargas/beltr-unraid/main/icon.png</Icon>
   <ReadMe>https://raw.githubusercontent.com/CasaVargas/beltr-unraid/main/README.md</ReadMe>
-  <ExtraSearchTerms>karaoke sing singalong lyrics vocals stems demucs whisper party microphone cdg mp3g</ExtraSearchTerms>
+  <ExtraSearchTerms>karaoke sing singalong lyrics vocals stems vocal-remover mdx-net party microphone cdg mp3g midi kar</ExtraSearchTerms>
   <License>Proprietary — one-time purchase, five-song free trial</License>
   <Screenshot>https://raw.githubusercontent.com/CasaVargas/beltr-unraid/main/screenshots/tv-lyrics.webp</Screenshot>
   <Screenshot>https://raw.githubusercontent.com/CasaVargas/beltr-unraid/main/screenshots/dashboard.png</Screenshot>
   <Screenshot>https://raw.githubusercontent.com/CasaVargas/beltr-unraid/main/screenshots/phone-remote.webp</Screenshot>
-  <Date>2026-08-14</Date>
+  <Date>2026-09-01</Date>
   <Changes>
+### 2026-09-01
+
+Overview text only: describes the lyrics pipeline accurately (online lookup or
+local draft, then forced alignment) and names the Beltr-Intel sibling. No
+config, path or variable changes.
+
 ### 2026-08-14
 
 First Community Applications release. The container tracks the Beltr desktop

@@ -10,7 +10,7 @@
   <Support>https://github.com/CasaVargas/beltr-releases/issues</Support>
   <Project>https://beltr.app</Project>
   <Overview>
-Beltr turns any song in your music library into a karaoke track. It separates the vocals out with a local AI model, finds or transcribes synced lyrics, and displays them on a TV while everyone's phone acts as a remote — scan the QR code on screen, no app to install.
+Beltr turns any song in your music library into a karaoke track. It separates the vocals out with a local AI model, finds synced lyrics online (or drafts them locally when no provider has the song), force-aligns them to the vocal word by word, and displays them on a TV while everyone's phone acts as a remote — scan the QR code on screen, no app to install.
 
 Everything runs on your server. Nothing about your library is uploaded.
 
@@ -35,13 +35,18 @@ NOTE: Beltr assumes everyone who can reach it is trusted. Set AUTH_PASSWORD to p
   <TemplateURL>https://raw.githubusercontent.com/CasaVargas/beltr-unraid/main/templates/beltr-openvino.xml</TemplateURL>
   <Icon>https://raw.githubusercontent.com/CasaVargas/beltr-unraid/main/icon.png</Icon>
   <ReadMe>https://raw.githubusercontent.com/CasaVargas/beltr-unraid/main/README.md</ReadMe>
-  <ExtraSearchTerms>karaoke sing singalong lyrics vocals stems demucs whisper party microphone cdg mp3g intel igpu arc openvino quicksync gpu</ExtraSearchTerms>
+  <ExtraSearchTerms>karaoke sing singalong lyrics vocals stems vocal-remover mdx-net party microphone cdg mp3g midi kar intel igpu arc openvino quicksync gpu</ExtraSearchTerms>
   <License>Proprietary — one-time purchase, five-song free trial</License>
   <Screenshot>https://raw.githubusercontent.com/CasaVargas/beltr-unraid/main/screenshots/tv-lyrics.webp</Screenshot>
   <Screenshot>https://raw.githubusercontent.com/CasaVargas/beltr-unraid/main/screenshots/dashboard.png</Screenshot>
   <Screenshot>https://raw.githubusercontent.com/CasaVargas/beltr-unraid/main/screenshots/phone-remote.webp</Screenshot>
-  <Date>2026-08-22</Date>
+  <Date>2026-09-01</Date>
   <Changes>
+### 2026-09-01
+
+Overview text only: describes the lyrics pipeline accurately (online lookup or
+local draft, then forced alignment). No config, path or variable changes.
+
 ### 2026-08-22
 
 First Intel GPU build. The container tracks the Beltr desktop release line —
@@ -81,8 +86,16 @@ https://github.com/CasaVargas/beltr-releases/releases
           Type="Variable" Display="advanced" Required="false" Mask="false">GPU</Config>
 
   <Config Name="GPU precision" Target="BELTR_MDX_OPENVINO_PRECISION" Default="FP32" Mode=""
-          Description="FP32 is the default and matches the CPU output. FP16 is usually faster on Intel GPUs but its separation quality has not been measured here; try it if separation feels slow and listen to the result."
+          Description="FP32 is the default and matches the CPU output. FP16 is usually faster on Intel GPUs but its separation quality has not been measured here; try it if separation feels slow and listen to the result. FP16 also halves what the GPU holds."
           Type="Variable" Display="advanced" Required="false" Mask="false">FP32</Config>
+
+  <Config Name="Hold the model between songs (seconds)" Target="BELTR_WARM_SEPARATION_IDLE_S" Default="" Mode=""
+          Description="How long the separation worker keeps its model loaded after finishing a song. Leave blank for Beltr's default (10 seconds in a container, so the memory is released between songs during a big import). Raise it to trade memory for a little speed; lower it if memory is very tight."
+          Type="Variable" Display="advanced" Required="false" Mask="false"/>
+
+  <Config Name="OpenVINO runtime properties" Target="BELTR_MDX_OPENVINO_LOAD_CONFIG" Default="" Mode=""
+          Description="Advanced. Raw OpenVINO properties as JSON, keyed by device — for example {&quot;GPU&quot;: {&quot;PERFORMANCE_HINT&quot;: &quot;LATENCY&quot;, &quot;NUM_STREAMS&quot;: &quot;1&quot;}}, which is what Beltr sends by default. Set to off to send none. Only worth touching if you have read OpenVINO's property list and measured your own box."
+          Type="Variable" Display="advanced" Required="false" Mask="false"/>
 
   <Config Name="PUID" Target="PUID" Default="99" Mode=""
           Description="User ID that owns the files Beltr writes. 99 (nobody) is the Unraid default."

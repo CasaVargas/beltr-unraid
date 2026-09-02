@@ -4,13 +4,14 @@
 
 Unraid Community Applications templates for **Beltr**, a self-hosted karaoke
 server. It takes a song from your own music library, separates the vocals out
-with a local AI model, finds or transcribes synced lyrics, and puts the words on
-a TV while everyone's phone acts as a remote. Guests scan the QR code on screen;
+with a local AI model (UVR MDX-Net on ONNX Runtime), finds synced lyrics online
+or drafts them locally, force-aligns them to the vocal word by word, and puts
+the words on a TV while everyone's phone acts as a remote. Guests scan the QR code on screen;
 there is no app for them to install.
 
 Everything runs on your server. Nothing about your library is uploaded.
 
-[beltr.app](https://beltr.app) &middot; [Full Unraid guide](docs/UNRAID.md) &middot; [Support](https://github.com/CasaVargas/beltr-releases/issues)
+[beltr.app](https://beltr.app) &middot; [Full Unraid guide](docs/UNRAID.md) &middot; [Reverse proxy and HTTPS](docs/REVERSE-PROXY.md) &middot; [Support](https://github.com/CasaVargas/beltr-releases/issues)
 
 ![Lyrics on the TV screen](screenshots/tv-lyrics.webp)
 
@@ -82,14 +83,19 @@ every time you update the image.
 - **Beltr assumes everyone who can reach it is trusted.** Room joins are open by
   design so a guest can scan a QR code and sing. `AUTH_PASSWORD` puts a password
   on the TV and dashboard screens, but do not port-forward this container.
-- **AMD and Intel GPUs are not supported.** Not an oversight; the separation
-  model's complex-valued STFT is not reliable on those paths.
+- **AMD GPUs are not supported in the container.** ONNX Runtime's AMD path
+  needs a full ROCm userspace in the image, several gigabytes, so it is not
+  built; on the Windows desktop app AMD and Intel graphics can use the optional
+  DirectML GPU pack instead. Intel iGPUs and Arc A-series cards are the
+  **Beltr-Intel** image above; Arc B-series and Panther Lake are newer than its
+  driver and are not supported yet. Everything also runs on the CPU alone.
 
 ## Licensing
 
-Beltr is a **one-time purchase**, not a subscription. The container runs free
-for five songs so you can try it against your own music, then asks for a key
-from [beltr.app](https://beltr.app). Activation happens once and then works
+Beltr is a **one-time purchase** ($19.99, lifetime updates, 14-day money-back
+guarantee), not a subscription. The container runs free for five songs so you
+can try it against your own music, then asks for a key from
+[beltr.app](https://beltr.app). Activation happens once and then works
 offline; updating or recreating the container does not re-activate, as long as
 you keep `/config`. A key covers two installs.
 

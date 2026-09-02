@@ -33,12 +33,12 @@ x-beltr-common: &beltr-common
     # Fixed 6-digit host PIN. Left unset it is randomised on every start, which
     # is confusing when a container restarts mid-party.
     KARAOKE_HOST_PIN: "${KARAOKE_HOST_PIN:-}"
-    # Whisper only runs when no lyrics provider has the song, so most tracks
-    # never touch it. On a CPU-only box where it does run, large-v3-turbo is
-    # the difference between usable and not.
-    # (DEMUCS_MODEL / BELTR_DEMUCS_OVERLAP / BELTR_DEMUCS_SEGMENT were passed
-    # through here. Demucs was deleted in migration Phase 1 and config.py stopped
-    # reading them, so they had become three env vars that did nothing.)
+    # Lyrics: Beltr fetches synced lyrics from a provider first and force-aligns
+    # them to the vocal stem. Only a song no provider knows is transcribed
+    # locally (Parakeet-TDT on ONNX Runtime), so most tracks never touch that
+    # path. There is no model-size knob any more: WHISPER_MODEL_SIZE,
+    # DEMUCS_MODEL, BELTR_DEMUCS_OVERLAP and BELTR_DEMUCS_SEGMENT are all
+    # retired and ignored (separation is MDX-Net on ONNX Runtime, pinned).
     # Optional password on the TV/dashboard pages and the management endpoints.
     # Room joins stay open either way. Not an internet-facing auth layer —
     # see docs/UNRAID.md before exposing this beyond your LAN.
