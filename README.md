@@ -39,7 +39,7 @@ music folder. Beltr never scans your library until you point it at one.
 
 ```bash
 docker run -d --name beltr \
-  -p 8477:8477 \
+  -p 8477:8477 -p 8478:8478 \
   -e PUID=99 -e PGID=100 -e TZ=America/New_York \
   -v /mnt/user/appdata/beltr:/config \
   -v /mnt/user/beltr:/library \
@@ -76,10 +76,13 @@ every time you update the image.
 
 - **First run downloads about 2 GB** of model weights into `/cache`. Once. If a
   first song seems to sit still, that is what it is doing: `docker logs -f beltr`.
-- **Microphones need HTTPS.** Browsers only expose the microphone on a secure
-  page, so scoring and phone-as-mic need Beltr behind a reverse proxy with a
-  certificate. Queueing, playback, lyrics and stem mixing all work fine over
-  plain http. [Details](docs/UNRAID.md#microphones-need-https).
+- **Microphones need HTTPS, and Beltr serves it.** Browsers only expose the
+  microphone on a secure page, so the container also serves https on port 8478
+  with a self-signed certificate. Open `https://<server>:8478/tv` on the laptop
+  or phone that has the mic and accept the warning once. Queueing, playback,
+  lyrics and stem mixing work over plain http on 8477. A reverse proxy with a
+  real certificate is only needed if you want no warning at all.
+  [Details](docs/UNRAID.md#microphones-need-https).
 - **Beltr assumes everyone who can reach it is trusted.** Room joins are open by
   design so a guest can scan a QR code and sing. `AUTH_PASSWORD` puts a password
   on the TV and dashboard screens, but do not port-forward this container.

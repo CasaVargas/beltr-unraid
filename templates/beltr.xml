@@ -24,7 +24,7 @@ LICENSE: Beltr is a one-time purchase (no subscription). Run it free for five so
 
 AFTER INSTALL: open the WebUI, go to Settings, and add /media as a music folder. Then open http://your-server:8477/tv on whatever screen you're singing at, and scan the QR with a phone.
 
-MICROPHONES NEED HTTPS: browsers only allow microphone access on a secure page, so singing scores and the phone-as-mic feature need Beltr behind a reverse proxy with a certificate. Everything else — queueing, playback, lyrics, stem mixing — works normally over plain http.
+MICROPHONES NEED HTTPS: browsers only allow microphone access on a secure page. Beltr serves one itself on port 8478 with a self-signed certificate: open https://your-server:8478/tv on the laptop or phone that has the microphone and accept the browser's warning once. Everything else — queueing, playback, lyrics, stem mixing, the QR the TV shows — works over plain http on 8477. A reverse proxy with a real certificate is only needed if you want no warning at all.
 
 NOTE: Beltr assumes everyone who can reach it is trusted. Set AUTH_PASSWORD to put a password on the TV and dashboard screens, but do not expose this container to the internet without a reverse proxy doing real authentication in front of it.
   </Overview>
@@ -63,6 +63,14 @@ https://github.com/CasaVargas/beltr-releases/releases
   <Config Name="WebUI Port" Target="8477" Default="8477" Mode="tcp"
           Description="Port for the web interface, the TV screen and the phone remotes. Change the host side only if 8477 is already taken."
           Type="Port" Display="always" Required="true" Mask="false">8477</Config>
+
+  <Config Name="HTTPS Port" Target="8478" Default="8478" Mode="tcp"
+          Description="Self-signed HTTPS for microphones (browsers only allow the mic on a secure page). Open https://your-server:8478/tv on the device with the mic and accept the warning once. Keep host and container sides equal: Beltr builds the address it shows from this number."
+          Type="Port" Display="always" Required="false" Mask="false">8478</Config>
+
+  <Config Name="HTTPS" Target="BELTR_TLS" Default="on" Mode=""
+          Description="on = also serve https on the HTTPS Port with a self-signed certificate Beltr generates and keeps in /config/tls. off = plain http only (microphones then need a reverse proxy with a certificate)."
+          Type="Variable" Display="advanced" Required="false" Mask="false">on</Config>
 
   <Config Name="Config" Target="/config" Default="/mnt/user/appdata/beltr" Mode="rw"
           Description="App state: database, settings, logs, lyrics. Small and written often — keep it on appdata (SSD/cache pool)."
