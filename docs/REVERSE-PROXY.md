@@ -11,11 +11,12 @@ constraint in the code, and most fail *silently* if you get them wrong: the room
 looks alive, phones connect, and nothing ever moves. Read the whole page before
 you write a proxy config.
 
-If all you want is HTTPS so phone microphones work on your LAN — that is the
-single most common reason to bother — jump to
-[HTTPS is what makes phone mics work](#https-is-what-makes-phone-mics-work) and
-[the Unraid microphone note](UNRAID.md#microphones-need-https), which covers the
-plain-`http://` fallbacks too.
+If all you want is a working microphone on your LAN, **you no longer need a
+proxy**: the container serves self-signed https on port 8478 out of the box
+(open `https://<server>:8478/tv`, accept the warning once) — see
+[the Unraid microphone note](UNRAID.md#microphones-need-https). A proxy is the
+way to get a *trusted* certificate, i.e. no warning on any device; see
+[HTTPS is what makes phone mics work](#https-is-what-makes-phone-mics-work).
 
 ## The rules, shortest first
 
@@ -166,6 +167,16 @@ responses will hide the progress the UI is waiting on.
 Set the read/send timeout to an hour (`3600s` above is a safe ceiling) and turn
 buffering off. The snippets above already do both.
 
+### If this install shares its separation
+
+An install with **Share this computer's separation** switched on receives whole
+songs by upload, up to 200 MB, on `/api/helper/jobs`. Most proxies cap request
+bodies far below that and answer `413` long before Beltr sees the file, which
+looks on the other machine like the helper simply rejecting every job. Raise the
+limit: nginx `client_max_body_size 200m;`, Caddy `request_body { max_size
+200MB }`. Traefik has no body limit unless you added the `buffering` middleware,
+in which case set `maxRequestBodyBytes: 209715200`.
+
 ## 5. HTTPS is what makes phone mics work
 
 This is the single biggest reason to put a proxy in front of Beltr at all.
@@ -176,14 +187,16 @@ API is not permission-denied, it is simply **absent**, so singing scores, the TV
 mic panel and the phone-as-mic feature all go dark. No setting inside Beltr can
 grant the browser that permission; only a secure origin can.
 
-A reverse proxy with a real certificate (or Caddy's automatic one, Tailscale
-Serve, Cloudflare Tunnel) gives every device an `https://` origin at once,
-phones included. That is what this whole page buys you.
+Beltr's own self-signed listener on port 8478 already gives any laptop or
+phone a secure context after one click through the browser's warning. A
+reverse proxy with a real certificate (or Caddy's automatic one, Tailscale
+Serve, Cloudflare Tunnel) removes that warning for every device at once, and
+lets the QR itself point at an `https://` address. That is what this page buys
+you on top of the built-in listener.
 
 The plain-`http://` fallbacks — per-browser insecure-origin flags, opening the
 server on its own `localhost` — are covered in
-[the Unraid microphone note](UNRAID.md#microphones-need-https); a phone remote
-can only reach a microphone through HTTPS, so a proxy is the real answer.
+[the Unraid microphone note](UNRAID.md#microphones-need-https).
 
 ## 6. Do not put the proxy's own auth in front of Beltr
 

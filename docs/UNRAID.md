@@ -4,6 +4,13 @@ Beltr as a container: a headless karaoke server for a homelab. Same backend as
 the desktop apps, no Electron — the TV screen, the host dashboard and the phone
 remotes are all just web pages this container serves.
 
+The cpu image is multi-arch: `docker pull ghcr.io/casavargas/beltr` gives you
+linux/amd64 on an Intel/AMD box and linux/arm64 on Apple Silicon (Docker
+Desktop or OrbStack), a Raspberry Pi 5 or an Ampere VPS. The `-cuda` and
+`-openvino` images are amd64 only. On a Mac the container has no access to
+CoreML or the GPU, so separation is CPU-only and slower than the native Mac
+app; use the `cpu` profile and skip `--device`/`--gpus`.
+
 ---
 
 ## What you get
@@ -152,7 +159,7 @@ local transcription). Everything else, and every image, works on the CPU alone.
 
 | Where Beltr runs | NVIDIA | Intel iGPU / Arc A-series | AMD | Apple Silicon |
 |---|---|---|---|---|
-| **Container** (this guide) | `latest-cuda` / **Beltr-NVIDIA** | `latest-openvino` / **Beltr-Intel** (6th gen Core through Arrow / Lunar Lake, Arc A; Arc B and Panther Lake not yet) | **Not supported** (see below) | n/a: Docker on macOS has no GPU passthrough |
+| **Container** (this guide) | `latest-cuda` / **Beltr-NVIDIA** | `latest-openvino` / **Beltr-Intel** (6th gen Core through Arrow / Lunar Lake, Arc A; Arc B and Panther Lake not yet) | **Not supported** (see below) | CPU-only: the multi-arch `latest` image runs as linux/arm64 under Docker Desktop or OrbStack, but the VM has no GPU or CoreML |
 | **Desktop app** | Optional CUDA GPU pack (Windows, Linux) | Optional DirectML GPU pack (Windows) | Optional DirectML GPU pack (Windows, where the driver supports it) | Built in |
 
 Install one container template, not two: they share the same default paths.
@@ -260,6 +267,44 @@ full ROCm userspace in the image — several gigabytes — and official support
 for the APUs in most AMD NAS boxes is thin. It is on the list, not off it. On
 the Windows desktop app, AMD and Intel graphics can use the optional DirectML
 GPU pack instead; that path does not exist in the container.
+
+---
+
+## Use another computer's GPU
+
+The container separates on its CPU. If there is a Mac, or a Windows PC with
+Beltr's GPU pack, on the same network, that machine can do the separation
+instead and the container falls back to itself when it is off.
+
+On the fast machine: Beltr → Settings → Processing → **Share this computer's
+separation**. Turn it on and copy the address and token.
+On the container: Settings → Processing → **Separation helper**. Paste both,
+press **Test**, then turn it on.
+
+Trusted-network model, the same as the host PIN: anyone with the token can send
+audio to that machine. Do not expose a sharing install on the internet without a
+real auth layer in front of it.
+
+A few things worth knowing before you lean on it:
+
+- **Both installs need the same separation model.** Test says "model mismatch"
+  when they differ — usually one of the two is a release behind. A *version*
+  difference on its own is only a warning.
+- **The order is: this machine's own GPU pack, then the helper, then this
+  machine's CPU.** A container has no GPU pack, so it is helper, then CPU.
+- **No chaining.** A machine that is itself using a helper does not pass work
+  on; a job it is given always runs on the machine that received it.
+- **One job at a time, plus one waiting.** Anything beyond that is refused and
+  the asking install retries shortly after.
+- **Uploads are capped at 200 MB** and have to decode as audio. If the sharing
+  install sits behind a reverse proxy, raise the proxy's body-size limit to
+  match — see [the reverse-proxy guide](REVERSE-PROXY.md).
+- **If the helper is off, unreachable or fails, the song is still prepared** —
+  once, on the machine that asked. You lose the speed, not the song.
+
+`BELTR_MDX_HELPER=0` stops an install using a helper at all, whatever its
+settings say. There is no environment variable that turns *sharing* on: that is
+a deliberate choice made in Settings on the machine doing the work.
 
 ---
 
@@ -430,15 +475,36 @@ but it cannot grant itself the permission.
 Everything else works untouched: queueing, playback, lyrics, stem mixing,
 remotes. It is specifically live microphone capture that needs the secure page.
 
-Three ways out, best first:
+**The built-in way out (default since the container gained it):** Beltr also
+serves **https on port 8478** with a self-signed certificate it generates on
+first start and keeps in `/config/tls`. Open
+`https://tower.local:8478/tv` — or `/remote` on a phone — accept the browser's
+one-time warning ("Advanced → Proceed" in Chrome/Edge/Firefox, "Show Details →
+visit this website" in iOS Safari), and the microphone works. Beltr's own
+"Mic unavailable" message names this address, and the phone remote's mic note
+links to it. The QR the TV shows stays plain http on 8477 on purpose, so guests
+who only want to queue songs never meet a certificate warning; a guest who
+wants to sing follows the link in the mic note. A few notes:
 
-1. **Put it behind HTTPS.** A reverse proxy (Nginx Proxy Manager, Caddy,
-   Traefik — all in Community Applications) with a certificate, then open Beltr
-   at that name. Tailscale Serve and Cloudflare Tunnel also produce a real
-   HTTPS origin. This is the only one that fixes it for every device at once,
-   phones included.
-2. **Tell your browser to trust the origin.** Per-browser, per-device, and it
-   survives restarts:
+- The certificate is issued once and deliberately **not** reissued when the
+  server's IP or hostname changes — every reissue is a fresh warning on every
+  device. To reissue anyway, stop the container and delete `/config/tls`. To
+  put an extra name or IP in it, set `BELTR_TLS_SANS=karaoke.lan,10.0.0.9`.
+- Bring your own certificate with `BELTR_TLS_CERTFILE` + `BELTR_TLS_KEYFILE`
+  (paths inside the container); `BELTR_TLS=off` turns the listener off.
+- Keep the host and container sides of port 8478 equal: the address Beltr
+  shows is built from the container-side number.
+- The Apple TV and Android TV apps keep using plain http; nothing changes for
+  them.
+
+Three other ways out, for a warning-free setup or a locked-down browser:
+
+1. **Put it behind HTTPS with a real certificate.** A reverse proxy (Nginx
+   Proxy Manager, Caddy, Traefik — all in Community Applications), Tailscale
+   Serve or Cloudflare Tunnel gives every device a trusted `https://` origin
+   with no warning at all. See [the reverse-proxy guide](REVERSE-PROXY.md).
+2. **Tell your browser to trust the plain-http origin.** Per-browser,
+   per-device, and it survives restarts:
    - Chrome/Edge: `chrome://flags/#unsafely-treat-insecure-origin-as-secure` →
      add `http://tower.local:8477` → Enabled → relaunch.
    - Firefox: `about:config` → set `media.devices.insecure.enabled` and
@@ -504,9 +570,10 @@ current image, recreate the container, and run the installer again: with no
 Node in the way it now installs the runtime it actually needs.
 
 **"Mic unavailable: browsers only allow microphone access over HTTPS or on localhost."**
-Not a bug and not fixable from inside Beltr — see "Microphones need HTTPS"
-above for the three ways out. Everything except live mic capture works normally
-on a plain-http page.
+Not a bug — a browser rule. Open the `https://…:8478` address the message names
+on the device with the microphone and accept the warning once; see "Microphones
+need HTTPS" above for the details and the warning-free alternatives. Everything
+except live mic capture works normally on a plain-http page.
 
 **Everything is slow and the log mentions Parakeet or transcribing.**
 You're hitting the transcription path: no lyrics provider had the song. See

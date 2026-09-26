@@ -11,20 +11,33 @@
 # same volumes, so running two together is a port clash and two writers on
 # one SQLite database.
 #
+# Apple Silicon (Docker Desktop / OrbStack): use the cpu profile. `latest`
+# resolves to the linux/arm64 image on its own. There is no /dev/dri and no
+# --gpus inside the VM, so separation is CPU-only; keep /library on a named
+# volume or VirtioFS bind mount, the legacy osxfs mount is slow for stems.
+#
 # Open http://<server>:8477/dashboard to manage, /tv on the screen showing
 # lyrics. Phones scan the QR from the TV — no app, no extra config, as long as
 # the TV was opened at an address the phones can also reach (i.e. not
-# localhost). See docs/UNRAID.md.
+# localhost). Microphones need a secure page: open https://<server>:8478/tv
+# (self-signed, accept the warning once) on the laptop or phone that has the
+# mic. See docs/UNRAID.md.
 
 x-beltr-common: &beltr-common
   restart: unless-stopped
   ports:
     - "${BELTR_PORT:-8477}:${BELTR_PORT:-8477}"
+    - "${BELTR_TLS_PORT:-8478}:${BELTR_TLS_PORT:-8478}"
   environment:
     PUID: "${PUID:-1000}"
     PGID: "${PGID:-1000}"
     TZ: "${TZ:-UTC}"
     BELTR_PORT: "${BELTR_PORT:-8477}"
+    # Self-signed HTTPS on a second port, so a browser will hand Beltr the
+    # microphone (it only does that on a secure page). Keep host and container
+    # ports equal: the in-app hint builds the address from this number.
+    BELTR_TLS: "${BELTR_TLS:-on}"
+    BELTR_TLS_PORT: "${BELTR_TLS_PORT:-8478}"
     # Your license key from beltr.app. Activates once against this install's
     # identity (a UUID stored in /config) and then works offline. Leave it
     # blank to run the trial — five songs, then it asks you to buy.
