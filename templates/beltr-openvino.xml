@@ -10,7 +10,7 @@
   <Support>https://github.com/CasaVargas/beltr-releases/issues</Support>
   <Project>https://beltr.app</Project>
   <Overview>
-INTEL GPU BUILD: for the integrated graphics in 6th-gen Core onward (N100 included) or an Arc A-series card. Needs the Intel GPU TOP plugin; /dev/dri is already passed through. No Intel GPU? Install plain Beltr.
+Karaoke night from the music already on your server. Beltr strips the vocals with local AI, puts word-synced lyrics on the TV, and makes every phone a remote, no app needed. Intel build: 6th-gen Core graphics onward (N100 too) or Arc. No Intel GPU? Pick Beltr.
 
 Beltr turns any song in your music library into a karaoke track. It separates the vocals out with a local AI model, finds synced lyrics online (or drafts them locally when no provider has the song), force-aligns them to the vocal word by word, and displays them on a TV while everyone's phone acts as a remote — scan the QR code on screen, no app to install.
 
