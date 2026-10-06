@@ -139,9 +139,11 @@ curl -s http://<server>:8477/api/trial/status
 Two of these matter more than they look:
 
 - **`/library` must not live in `appdata`.** Every processed song leaves behind
-  a pair of lossless FLAC stems. A few hundred songs will fill a cache pool
-  sized for config files. This is the whole reason `/config` and `/library` are
-  separate mounts.
+  a pair of stems: AAC by default, about 10 MB a song, or lossless FLAC (about
+  40 MB a song) if you pick that under Settings → Preparing songs → How stems
+  are stored. Either way a few hundred songs will fill a cache pool sized for
+  config files. This is the whole reason `/config` and `/library` are separate
+  mounts. `BELTR_STEM_STORE_FORMAT=flac` in the template pre-selects lossless.
 - **`/cache` must stay mapped.** It is where the ~2 GB of model weights land.
   Unmapped, they live inside the container and are re-downloaded every single
   time you update the image. On slow storage, model *loading* is noticeably
