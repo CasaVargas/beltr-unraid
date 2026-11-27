@@ -46,7 +46,7 @@ has a song, Beltr drafts the lyrics locally with an on-device speech model
 3. Set the four paths. Defaults are sensible; the section on shares below
    explains why they are what they are.
 4. **Apply**, wait for the pull, then open the WebUI.
-5. In **Settings → Music folders**, add `/media`. Beltr does not scan it
+5. In **Settings → Library → Music folders**, add `/media`. Beltr does not scan it
    automatically — it will not touch your library until you point it at one.
 
 ### Plain Docker
@@ -278,9 +278,9 @@ The container separates on its CPU. If there is a Mac, or a Windows PC with
 Beltr's GPU pack, on the same network, that machine can do the separation
 instead and the container falls back to itself when it is off.
 
-On the fast machine: Beltr → Settings → Processing → **Share this computer's
+On the fast machine: Beltr → Settings → Preparing songs → Advanced → **Share this computer's
 separation**. Turn it on and copy the address and token.
-On the container: Settings → Processing → **Separation helper**. Paste both,
+On the container: Settings → Preparing songs → Advanced → **Separation helper**. Paste both,
 press **Test**, then turn it on.
 
 Trusted-network model, the same as the host PIN: anyone with the token can send
@@ -563,7 +563,7 @@ that starts fine and answers nothing.
 
 **Music-video download fails with "No supported JavaScript runtime could be found".**
 yt-dlp needs a JavaScript runtime to solve YouTube's player challenges, and it
-arrives with yt-dlp itself: Settings → *Music-video backgrounds* → install the
+arrives with yt-dlp itself: Settings → Preparing songs → *Music-video downloader* → install the
 downloader fetches both halves into `/cache`, where they survive image updates.
 Older images (v1.57.9 through v1.60.4) shipped Debian's Node 18 for this, which
 yt-dlp refuses — it requires Node 22+ — *and* which made that installer skip the
